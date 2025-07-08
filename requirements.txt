@@ -1,0 +1,13 @@
+flask
+flask-cors
+pymongo
+requests
+flask_bcrypt
+flask_jwt_extended
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+pyjwt
+cryptography
+python-dotenv
+gunicorn
