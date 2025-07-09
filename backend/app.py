@@ -40,6 +40,49 @@ def signup():
 
     save_user(username, password)
     return jsonify({"message": "Signup successful"}), 201
+@app.route("/auth/google", methods=["POST"])
+def google_login():
+    data = request.get_json()
+    code = data.get("code")
+
+    if not code:
+        return jsonify({"error": "No authorization code provided"}), 400
+
+    try:
+        # Exchange authorization code for tokens
+        token_url = "https://oauth2.googleapis.com/token"
+        token_data = {
+            'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+            'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+            'code': code,
+            'grant_type': 'authorization_code',
+            'redirect_uri': os.getenv('GOOGLE_REDIRECT_URI')
+        }
+
+        token_response = requests.post(token_url, data=token_data)
+        token_response.raise_for_status()
+        tokens = token_response.json()
+
+        # ✅ Use ID token (more secure, no need to fetch userinfo manually)
+        user_info = verify_google_token(tokens["id_token"])
+        if not user_info:
+            return jsonify({"error": "Invalid ID token"}), 401
+
+        # ✅ Create or get user
+        user = get_or_create_oauth_user(
+            email=user_info['email'],
+            provider='google',
+            name=user_info.get('name'),
+            picture=user_info.get('picture')
+        )
+
+        # ✅ Generate JWT
+        jwt_token = create_access_token(identity=str(user["_id"]))
+        return jsonify({"token": jwt_token}), 200
+
+    except Exception as e:
+        print(f"Google OAuth error: {e}")
+        return jsonify({"error": "Google authentication failed"}), 401
 
 # ✅ LOGIN
 @app.route("/login", methods=["POST"])
@@ -55,52 +98,6 @@ def login():
     return jsonify({"error": "Invalid credentials"}), 401
 
 # ✅ GOOGLE OAUTH LOGIN
-@app.route("/auth/google", methods=["POST"])
-def google_login():
-    data = request.get_json()
-    code = data.get("code")
-    
-    if not code:
-        return jsonify({"error": "No authorization code provided"}), 400
-    
-    try:
-        # Exchange authorization code for tokens
-        token_url = "https://oauth2.googleapis.com/token"
-        token_data = {
-            'client_id': os.getenv('GOOGLE_CLIENT_ID'),
-            'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
-            'code': code,
-            'grant_type': 'authorization_code',
-            'redirect_uri': os.getenv('GOOGLE_REDIRECT_URI')
-        }
-        
-        import requests
-        token_response = requests.post(token_url, data=token_data)
-        token_response.raise_for_status()
-        tokens = token_response.json()
-        
-        # Get user info using the access token
-        user_info_url = "https://www.googleapis.com/oauth2/v2/userinfo"
-        headers = {'Authorization': f'Bearer {tokens["access_token"]}'}
-        user_response = requests.get(user_info_url, headers=headers)
-        user_response.raise_for_status()
-        user_info = user_response.json()
-        
-        # Get or create user
-        user = get_or_create_oauth_user(
-            email=user_info['email'],
-            provider='google',
-            name=user_info.get('name'),
-            picture=user_info.get('picture')
-        )
-        
-        # Create JWT token
-        jwt_token = create_access_token(identity=str(user["_id"]))
-        return jsonify({"token": jwt_token}), 200
-        
-    except Exception as e:
-        print(f"Google OAuth error: {e}")
-        return jsonify({"error": "Google authentication failed"}), 401
 
 # ✅ START NEW SESSION 
 @app.route("/start_session", methods=["POST"])
