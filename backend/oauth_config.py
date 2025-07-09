@@ -31,32 +31,12 @@
 #         print(f"Google token verification failed: {e}")
 #         return None 
 
+# oauth_config.py
 import os
 from google.oauth2 import id_token
 from google.auth.transport import requests
-import requests as http_requests
 
-GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
-GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
-GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI')
-
-def exchange_code_for_tokens(code):
-    """Exchange OAuth code for tokens from Google"""
-    token_url = "https://oauth2.googleapis.com/token"
-    data = {
-        'code': code,
-        'client_id': GOOGLE_CLIENT_ID,
-        'client_secret': GOOGLE_CLIENT_SECRET,
-        'redirect_uri': GOOGLE_REDIRECT_URI,
-        'grant_type': 'authorization_code'
-    }
-
-    response = http_requests.post(token_url, data=data)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print(f"[ERROR] Token exchange failed: {response.text}")
-        return None
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 def verify_google_token(id_token_str):
     """Verify Google ID token and return user info"""
@@ -68,7 +48,10 @@ def verify_google_token(id_token_str):
         )
 
         if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
-            raise ValueError('Invalid issuer.')
+            raise ValueError('Wrong issuer.')
+
+        if not idinfo.get('email_verified'):
+            raise ValueError('Email not verified.')
 
         return {
             'email': idinfo['email'],
@@ -76,7 +59,7 @@ def verify_google_token(id_token_str):
             'picture': idinfo.get('picture', ''),
             'provider': 'google'
         }
-
     except Exception as e:
-        print(f"[ERROR] ID Token verification failed: {e}")
+        print(f"[OAuth Error] Google token verification failed: {e}")
         return None
+
